@@ -27,9 +27,9 @@ On each host that is allowed to publish, add the local vault path to an existing
 export OBSIDIAN_KNOWLEDGE_REPO="/absolute/path/to/vault"
 ```
 
-The configured directory must already be a Git repository with an upstream and working GitHub authentication. The variable contains no token and does not itself schedule synchronization.
+The configured directory must be a Git repository with working authentication. An existing upstream is preferred. If it is missing, provide the local vault path and repository URL together in the current task; the skill may bind that exact remote only after confirming the histories are compatible. It never overwrites a mismatched remote or force-pushes divergent history.
 
-Hosts without the variable can still use the skill for local notes but must not commit or push automatically.
+Hosts without the variable stay local-only unless the current task explicitly supplies both the vault path and repository URL.
 
 ## Profile-wide use and on-demand refresh
 

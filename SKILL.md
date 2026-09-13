@@ -1,7 +1,7 @@
 ---
 name: obsidian-second-brain
 description: Organize, connect, and safely sync an Obsidian vault.
-version: 1.0.0
+version: 1.0.1
 author: Yanis Ye (YanisYe), Hermes Agent
 license: MIT
 platforms: [linux, macos]
@@ -30,7 +30,7 @@ Do not use it to upload credentials, silently choose an unknown vault, or publis
 
 - An existing Obsidian vault or Markdown knowledge directory.
 - A user-provided vault path, or `OBSIDIAN_KNOWLEDGE_REPO` configured for hosts allowed to publish.
-- `git` plus an existing upstream and working authentication when Git publication is desired.
+- `git` plus working authentication when Git publication is desired. An existing upstream is preferred; an explicit vault path and repository URL in the current task may bootstrap one safely.
 
 A host can opt in by placing this in an existing shell startup file such as `~/.zshrc`, `~/.zprofile`, `~/.bashrc`, `~/.bash_profile`, or `~/.profile`:
 
@@ -48,6 +48,18 @@ This variable is permission plus a local path, not a credential. Never store Git
 4. If neither source identifies a vault, ask the user instead of guessing.
 5. Never bake a username, home directory, repository owner, remote URL, or branch into this skill.
 
+## Explicit Repository Bootstrap
+
+When the user explicitly supplies both the local vault path and its Git repository URL in the current task, treat that pair as authorization to establish missing Git wiring:
+
+1. Require the vault to be an existing Git worktree and inspect its status, current branch, remotes, and local revision.
+2. If the intended remote name is absent, add the exact user-provided URL. If that remote already exists but resolves to a different repository, stop instead of overwriting it.
+3. Fetch the remote and discover its default branch. Compare local and remote histories before editing or publishing.
+4. If histories match, or one is a clean fast-forward of the other, configure the current branch's upstream and continue through the normal refresh/publication flow. If histories diverge, stop and ask how to reconcile them; never force-push or replace history.
+5. After publication, compare local and upstream revisions before reporting success.
+
+An explicit URL authorizes only this repository binding. It does not authorize staging unrelated files, exposing private vault content, or changing another remote.
+
 ## Profile-Level Availability
 
 Install this skill in the **active Hermes profile's** `skills/note-taking/obsidian-second-brain/`, not inside an individual project or worktree. Resolve the active profile home using the host's supported configuration; the default profile commonly uses `~/.hermes`, while named profiles have their own home. Do not install into or modify other profiles implicitly.
@@ -61,7 +73,7 @@ After installation, verify discovery in a fresh session. A project-local AGENTS.
 Use task-triggered synchronization, not periodic polling. At the start of a task that needs existing vault context or will update notes, resolve the vault and refresh it **before reading notes used for decisions or drafting edits**.
 
 For an explicitly configured Git vault:
-1. Inspect `git status --porcelain`, the current branch and its configured upstream. Require an attached branch and known upstream; do not choose a remote or branch implicitly.
+1. Inspect `git status --porcelain`, the current branch and its configured upstream. Require an attached branch and a known upstream after any explicit bootstrap; do not choose a remote or branch implicitly.
 2. If the worktree or index contains uncommitted changes, or a merge/rebase is in progress, stop synchronization. Do not auto-stash, discard, commit unrelated edits or pull over them. Explain the blocker. Read-only access may continue only with a clear stale-local-copy warning; defer new writes until resolved.
 3. With a clean worktree, run `git pull --ff-only` against the configured upstream. A divergent branch, network/authentication error or conflict is a blocker, not a successful refresh.
 4. Read the latest project entry and relevant notes after the pull. Record the base revision for this task.
@@ -148,9 +160,9 @@ Never overwrite an earlier session handoff. When taking over an item, mark it in
 
 After writing and verifying notes, publish only when the current host explicitly opts in:
 
-1. Require `OBSIDIAN_KNOWLEDGE_REPO` in an existing shell startup file and resolve it to an existing Git worktree.
+1. Require either `OBSIDIAN_KNOWLEDGE_REPO` in an existing shell startup file or an explicit vault path in the current task, and resolve it to an existing Git worktree.
 2. Require every note being published to live inside that configured worktree.
-3. Discover the current branch and destination from the worktree's configured upstream. Never create a remote or choose a repository implicitly.
+3. Discover the current branch and destination from the worktree's configured upstream. If the current task explicitly supplied the vault path and repository URL, first use the bounded bootstrap procedure above; never create or replace a remote implicitly.
 4. Verify authentication without printing credentials.
 5. Account for every worktree change. If unrelated or unexplained changes exist, leave the notes local and report `Git sync skipped`.
 6. Stage only files written or updated by the current task.
@@ -168,7 +180,7 @@ terminal(command="git -C <vault> commit -m '<specific message>'")
 terminal(command="git -C <vault> pull --rebase && git -C <vault> push")
 ```
 
-If the environment variable, Git worktree, upstream, or authentication is missing, do not commit or push. Local note creation may still succeed and must be reported separately from publication.
+If the environment variable or explicit vault path is missing, or the Git worktree, safe upstream/bootstrap information, or authentication is unavailable, do not commit or push. Local note creation may still succeed and must be reported separately from publication.
 
 ## Git Ignore Baseline
 
