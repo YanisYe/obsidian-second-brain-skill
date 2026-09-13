@@ -48,6 +48,29 @@ This variable is permission plus a local path, not a credential. Never store Git
 4. If neither source identifies a vault, ask the user instead of guessing.
 5. Never bake a username, home directory, repository owner, remote URL, or branch into this skill.
 
+## Profile-Level Availability
+
+Install this skill in the **active Hermes profile's** `skills/note-taking/obsidian-second-brain/`, not inside an individual project or worktree. Resolve the active profile home using the host's supported configuration; the default profile commonly uses `~/.hermes`, while named profiles have their own home. Do not install into or modify other profiles implicitly.
+
+Profile-level installation makes the skill discoverable across that profile's sessions, worktrees and projects. It does not automatically load the full skill or synchronize the vault on every turn. When authorized, store a compact discovery pointer in the profile's supported persistent memory/instruction mechanism: use this skill for project recall and knowledge capture, and resolve the configured vault before work. Keep project-specific rules in their own project notes; do not carry one project's decisions into another.
+
+After installation, verify discovery in a fresh session. A project-local AGENTS.md is not a substitute for profile-wide discovery. Do not hardcode a personal vault path into the distributed skill.
+
+## On-Demand Refresh Before Reading or Writing
+
+Use task-triggered synchronization, not periodic polling. At the start of a task that needs existing vault context or will update notes, resolve the vault and refresh it **before reading notes used for decisions or drafting edits**.
+
+For an explicitly configured Git vault:
+1. Inspect `git status --porcelain`, the current branch and its configured upstream. Require an attached branch and known upstream; do not choose a remote or branch implicitly.
+2. If the worktree or index contains uncommitted changes, or a merge/rebase is in progress, stop synchronization. Do not auto-stash, discard, commit unrelated edits or pull over them. Explain the blocker. Read-only access may continue only with a clear stale-local-copy warning; defer new writes until resolved.
+3. With a clean worktree, run `git pull --ff-only` against the configured upstream. A divergent branch, network/authentication error or conflict is a blocker, not a successful refresh.
+4. Read the latest project entry and relevant notes after the pull. Record the base revision for this task.
+5. Refresh once per coherent knowledge task, not per tool call or note. If returning after a long-running task, refresh/re-read before making edits, provided the worktree is still clean. If local edits already exist, reconcile deliberately rather than blindly pulling.
+
+A local-only vault without an authorized Git configuration still supports reading and writing; report refresh/publication as skipped. Missing credentials do not justify reading secret stores or inventing authentication. If several local agents share one vault worktree, serialize the pull/read/edit/commit/push transaction or use isolated worktrees and explicit review; a status check alone is not a lock.
+
+No cron job, timer, heartbeat, permanent background loop or automatic-sync service is part of this skill. Invoking Git during an actual knowledge task avoids idle model polling and preserves an explicit unit of work.
+
 ## Read Before Asking
 
 When the user mentions an ongoing project, inspect the vault before asking for context:
@@ -131,7 +154,7 @@ After writing and verifying notes, publish only when the current host explicitly
 4. Verify authentication without printing credentials.
 5. Account for every worktree change. If unrelated or unexplained changes exist, leave the notes local and report `Git sync skipped`.
 6. Stage only files written or updated by the current task.
-7. Run `git diff --cached --check`, commit the staged files, rebase onto the configured upstream, and push that upstream.
+7. Run `git diff --cached --check` and review the staged scope, then commit only the task's notes using the user's configured Git identity. Pull/rebase onto the configured upstream to incorporate changes published since the initial refresh. Re-read and validate affected notes/links after a successful rebase, then push that upstream. This final reconciliation complements, never replaces, the pre-edit pull.
 8. On conflict, rejected push, or authentication failure, stop. Never stash, discard, force-push, or include unrelated files automatically.
 9. Compare the local commit hash with the upstream hash before claiming synchronization succeeded.
 
