@@ -1,7 +1,7 @@
 ---
 name: obsidian-second-brain
 description: Organize, connect, and safely sync an Obsidian vault.
-version: 1.0.0
+version: 1.0.1
 author: Yanis Ye (YanisYe), Hermes Agent
 license: MIT
 platforms: [linux, macos]
@@ -62,9 +62,9 @@ Use task-triggered synchronization, not periodic polling. At the start of a task
 
 For an explicitly configured Git vault:
 1. Inspect `git status --porcelain`, the current branch and its configured upstream. Require an attached branch and known upstream; do not choose a remote or branch implicitly.
-2. If the worktree or index contains uncommitted changes, or a merge/rebase is in progress, stop synchronization. Do not auto-stash, discard, commit unrelated edits or pull over them. Explain the blocker. Read-only access may continue only with a clear stale-local-copy warning; defer new writes until resolved.
-3. With a clean worktree, run `git pull --ff-only` against the configured upstream. A divergent branch, network/authentication error or conflict is a blocker, not a successful refresh.
-4. Read the latest project entry and relevant notes after the pull. Record the base revision for this task.
+2. Inspect and preserve uncommitted changes and any merge/rebase in progress. Use **Conflict Recovery** below to reconcile task-related changes or isolate this task from unrelated edits; a dirty worktree is not a reason to abandon knowledge capture. Do not blindly pull, auto-stash, discard, or commit unrelated edits.
+3. With a clean worktree, run `git pull --ff-only` against the configured upstream. On divergence or conflict, use **Conflict Recovery**. On network/authentication failure, preserve pending content and report that the local context could be stale; do not claim a successful refresh.
+4. Read the project entry and relevant notes after refresh/reconciliation. Record the base revision and whether remote freshness was verified.
 5. Refresh once per coherent knowledge task, not per tool call or note. If returning after a long-running task, refresh/re-read before making edits, provided the worktree is still clean. If local edits already exist, reconcile deliberately rather than blindly pulling.
 
 A local-only vault without an authorized Git configuration still supports reading and writing; report refresh/publication as skipped. Missing credentials do not justify reading secret stores or inventing authentication. If several local agents share one vault worktree, serialize the pull/read/edit/commit/push transaction or use isolated worktrees and explicit review; a status check alone is not a lock.
@@ -149,13 +149,13 @@ Never overwrite an earlier session handoff. When taking over an item, mark it in
 After writing and verifying notes, publish only when the current host explicitly opts in:
 
 1. Require `OBSIDIAN_KNOWLEDGE_REPO` in an existing shell startup file and resolve it to an existing Git worktree.
-2. Require every note being published to live inside that configured worktree.
+2. Require every note being published to live inside that configured worktree or a recovery worktree of the same repository. A recovery worktree inherits only the verified original upstream destination; it does not authorize another repository or branch.
 3. Discover the current branch and destination from the worktree's configured upstream. Never create a remote or choose a repository implicitly.
 4. Verify authentication without printing credentials.
-5. Account for every worktree change. If unrelated or unexplained changes exist, leave the notes local and report `Git sync skipped`.
+5. Account for every worktree change. Preserve unrelated or unexplained changes and use an isolated worktree as described in **Conflict Recovery** when necessary; do not include them in this task's commit.
 6. Stage only files written or updated by the current task.
 7. Run `git diff --cached --check` and review the staged scope, then commit only the task's notes using the user's configured Git identity. Pull/rebase onto the configured upstream to incorporate changes published since the initial refresh. Re-read and validate affected notes/links after a successful rebase, then push that upstream. This final reconciliation complements, never replaces, the pre-edit pull.
-8. On conflict, rejected push, or authentication failure, stop. Never stash, discard, force-push, or include unrelated files automatically.
+8. On conflict or rejected push, use **Conflict Recovery**, validate the reconciled notes, then retry the normal push. Authentication failure requires durable pending content and a concrete recovery handoff; it does not justify losing the latest decisions. Never auto-stash, discard, force-push, or include unrelated files.
 9. Compare the local commit hash with the upstream hash before claiming synchronization succeeded.
 
 Use `terminal` for Git checks and commands. A typical verified sequence is:
@@ -169,6 +169,17 @@ terminal(command="git -C <vault> pull --rebase && git -C <vault> push")
 ```
 
 If the environment variable, Git worktree, upstream, or authentication is missing, do not commit or push. Local note creation may still succeed and must be reported separately from publication.
+
+## Conflict Recovery
+
+Resolve ordinary synchronization conflicts within the current task. A pause protects an in-progress merge from another overwrite; it must not become a blanket ban on new knowledge capture. Keep the existing publication authorization requirements.
+
+1. **Preserve and inspect.** Identify the active writer, branch/upstream, unmerged files, and merge/rebase state. Before reconciliation, save recoverable copies of affected local files, both conflict versions and pending notes outside the synced vault, including intended paths, source/session and base revision. Never reset hard, select ours/theirs for the entire vault, or delete conflict copies to make status clean.
+2. **Choose a safe workspace.** Serialize work with other writers. Finish an existing task-owned merge/rebase before starting another Git operation. If edits or an operation belong to another task, leave them intact and use an isolated worktree based on the verified configured upstream for this task's notes. Keep the original worktree and its local changes intact; report its state separately. Read relevant local edits as context, but do not publish them without authorization. If ownership cannot be established, preserve pending content rather than interfering with an active writer.
+3. **Merge content deliberately.** Keep independent additions from both sides; deduplicate identical records and links; preserve valid frontmatter, full vault-relative links and dated history. Use explicit decisions and source evidence to identify supersession, not file modification time alone. When two claims cannot be reconciled, retain both with dates/sources and a marked unresolved question linked from the project entry. Ask only for the missing semantic choice while saving the unambiguous decisions. A clean textual merge still requires reviewing meaning.
+4. **Finish and retry.** Validate the resolved files before marking them resolved and continuing the task-owned Git operation. Re-read targets before writing to detect concurrent edits. On a rejected push, fetch the configured upstream, reconcile, revalidate and retry a normal push. After two failed recovery cycles, inspect the concrete cause; persistent concurrent writes require coordination, not endless retries. Authentication, access and network failures must be reported precisely without changing credentials or publication scope implicitly.
+5. **Capture even when blocked.** If reconciliation/publication cannot finish, save complete pending Markdown in a durable staging directory outside the conflicted vault, with a manifest of intended vault-relative paths, source/session, base revision, blocker and next retry action. Record that location in the session handoff or final report. Save unaffected notes in the vault when safe. Do not report staging as synchronization or end with only "writes paused".
+6. **Drain and verify.** At the next sync, recover previously recorded staging locations and replay pending notes after searching for duplicates. Include recoverable missed decisions from prior sessions; never invent missing history. Update each affected project entry's links and dated progress and create the session handoff. Read back notes, check links/frontmatter and conflict markers, ensure no unmerged paths remain in the publication worktree, and verify the destination revision after pushing. Retain backups until recovery is verified. Report local capture, local reconciliation and remote publication separately; list any remaining ambiguity, staged content or untouched original-worktree conflict.
 
 ## Git Ignore Baseline
 

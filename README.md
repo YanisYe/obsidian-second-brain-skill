@@ -42,8 +42,9 @@ Synchronization is **on demand**, as part of actual knowledge work:
 ```text
 Need project context or need to save knowledge
   → resolve vault / branch / upstream
-  → check clean worktree; stop if dirty or conflicted
-  → pull --ff-only
+  → inspect and preserve local changes / in-progress operations
+  → reconcile task-owned conflicts or isolate from unrelated edits
+  → refresh from the configured upstream
   → read latest notes
   → edit and verify task-related notes
   → commit with user's identity
@@ -51,7 +52,9 @@ Need project context or need to save knowledge
   → revalidate affected notes, push, verify remote revision
 ```
 
-Read-only tasks stop after reading. Local-only vaults skip Git and report that distinction. A pre-edit pull prevents writing against stale knowledge; the final pull handles updates that arrive while the task is running. Never auto-stash unrelated edits or force-push to resolve conflicts.
+Read-only tasks stop after reading. Local-only vaults skip Git and report that distinction. Refresh before editing and reconcile updates that arrive during the task. Dirty worktrees and rejected pushes trigger the `SKILL.md` Conflict Recovery workflow, not abandonment of new decisions: preserve both sides, merge notes and project links, validate, and retry. Keep unrelated edits intact, using an isolated worktree when needed; never auto-stash or force-push.
+
+If network, authentication or an active writer still prevents completion, preserve complete pending notes with their destinations and recovery instructions in durable staging. Replay them at the next sync before claiming completion. Report local capture, reconciliation and verified publication separately; unresolved semantic claims retain their sources instead of silently choosing a winner.
 
 There is no periodic synchronization, cron, heartbeat or background agent loop. Refresh once per coherent knowledge task, not once per turn or file. This avoids model polling when no work needs doing. A plain Git timer need not consume model tokens, but it still introduces concurrent-worktree and conflict handling concerns; it is not installed by this skill.
 
